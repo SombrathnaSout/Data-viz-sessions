@@ -1,0 +1,25 @@
+WITH sanitized_data AS (
+  SELECT 
+    '786695317' AS chat_id,
+    jsonb_build_object(
+      'course_id', COALESCE("{{ $fromAI("course_id", "Provide the unique identifier for the course.") }}", "Unknown"),
+      'title', COALESCE("{{ $fromAI("title", "Provide the title of the course.") }}", "Untitled Course"),
+      'description', COALESCE("{{ $fromAI("description", "Provide a brief description of the course.") }}", NULL),
+      'duration', COALESCE("{{ $fromAI("duration", "Provide the duration of the course in hours.") }}", NULL),
+      'level', COALESCE("{{ $fromAI("level", "Provide the difficulty level of the course (e.g., Beginner, Intermediate, Advanced).") }}", "Unknown"),
+      'category', COALESCE("{{ $fromAI("category", "Provide the category or subject of the course.") }}", "General"),
+      'benefits', COALESCE("{{ $fromAI("benefits", "Provide a JSON array of benefits for completing the course.") }}", "[]"::jsonb),
+      'certificate', COALESCE("{{ $fromAI("certificate", "Indicate whether the course provides a certificate (true/false).") }}", false),
+      'content', COALESCE("{{ $fromAI("content", "Provide a JSON array of course modules/topics.") }}", "[]"::jsonb)
+    ) AS course_outline
+)
+INSERT INTO user_context (chat_id, course_outlines, last_updated)
+SELECT
+  (sanitized_data.chat_id)::text,
+  sanitized_data.course_outline::jsonb,
+  NOW()
+FROM sanitized_data
+ON CONFLICT (chat_id) DO UPDATE
+SET 
+  course_outlines = COALESCE(user_context.course_outlines, '[]'::jsonb) || EXCLUDED.course_outlines,
+  last_updated = NOW();
